@@ -5,6 +5,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as logs from "aws-cdk-lib/aws-logs";
 import { createSupport } from "./demo-support";
 
 const namespace = "durable-function-demo";
@@ -19,6 +20,7 @@ export class DurableFunctionDemoStack extends cdk.Stack {
         type: dynamo.AttributeType.STRING,
       },
       billingMode: dynamo.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     const commandQueue = new sqs.Queue(this, "CommandQueue", {
@@ -79,12 +81,19 @@ export class DurableFunctionDemoStack extends cdk.Stack {
       },
     });
 
+    const workflowLogGroup = new logs.LogGroup(this, "WorkflowLogGroup", {
+      logGroupName: `/aws/lambda/${namespace}-workflow`,
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     new nodejs.NodejsFunction(this, "WorkflowLambda", {
       functionName: `${namespace}-workflow`,
       entry: "functions/workflow/src/index.ts",
       handler: "handler",
       runtime: lambda.Runtime.NODEJS_LATEST,
       role: lambdaRole,
+      logGroup: workflowLogGroup,
       durableConfig: {
         executionTimeout: cdk.Duration.days(2),
         retentionPeriod: cdk.Duration.days(14),

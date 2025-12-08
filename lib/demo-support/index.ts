@@ -5,6 +5,7 @@ import * as sns from "aws-cdk-lib/aws-sns";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as logs from "aws-cdk-lib/aws-logs";
 
 export const createSupport = (scope: Construct, namespace: string, commandQueue: sqs.Queue) => {
   const dummyCustomerSns = new sns.Topic(scope, "DummyCustomerSns", {
@@ -31,12 +32,19 @@ export const createSupport = (scope: Construct, namespace: string, commandQueue:
     },
   });
 
+  const callbackLogGroup = new logs.LogGroup(scope, "CallbackApiLogGroup", {
+    logGroupName: `/aws/lambda/${namespace}-callback-api`,
+    retention: logs.RetentionDays.ONE_WEEK,
+    removalPolicy: cdk.RemovalPolicy.DESTROY,
+  });
+
   const callbackApiLambda = new nodejs.NodejsFunction(scope, "CallbackApiLambda", {
     functionName: `${namespace}-callback-api`,
     entry: "functions/callback-api/src/index.ts",
     handler: "handler",
     runtime: lambda.Runtime.NODEJS_LATEST,
     role: callbackApiRole,
+    logGroup: callbackLogGroup,
   });
 
   const callbackFunctionUrl = callbackApiLambda.addFunctionUrl({
@@ -86,12 +94,19 @@ export const createSupport = (scope: Construct, namespace: string, commandQueue:
     },
   });
 
+  const commandLogGroup = new logs.LogGroup(scope, "CommandLogGroup", {
+    logGroupName: `/aws/lambda/${namespace}-command`,
+    retention: logs.RetentionDays.ONE_WEEK,
+    removalPolicy: cdk.RemovalPolicy.DESTROY,
+  });
+
   const commandLambda = new nodejs.NodejsFunction(scope, "CommandLambda", {
     functionName: `${namespace}-command`,
     entry: "functions/command/src/index.ts",
     handler: "handler",
     runtime: lambda.Runtime.NODEJS_LATEST,
     role: commandLambdaRole,
+    logGroup: commandLogGroup,
     bundling: {
       externalModules: ["@aws-sdk/client-scheduler"],
       format: nodejs.OutputFormat.ESM,
