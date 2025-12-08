@@ -1,0 +1,20 @@
+{
+  "name": "command",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "clean": "rimraf ./dist",
+    "build": "npm run clean && esbuild src/index.ts --bundle --sourcemap --outfile=dist/index.mjs --platform=node --target=esnext --format=esm --external:@aws-sdk/client-scheduler"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.159",
+    "esbuild": "^0.27.1",
+    "rimraf": "^6.1.2"
+  },
+  "dependencies": {
+    "@aws-sdk/client-scheduler": "^3.946.0"
+  }
+}

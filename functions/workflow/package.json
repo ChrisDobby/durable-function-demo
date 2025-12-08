@@ -1,0 +1,23 @@
+{
+  "name": "workflow",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "clean": "rimraf ./dist",
+    "build": "npm run clean && esbuild src/index.ts --bundle --sourcemap --outfile=dist/index.mjs --platform=node --target=esnext --format=esm --external:@aws/durable-execution-sdk-js --external:@aws-sdk/client-dynamodb --external:@aws-sdk/lib-dynamodb"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.943.0",
+    "@aws-sdk/client-sns": "^3.946.0",
+    "@aws-sdk/client-sqs": "^3.946.0",
+    "@aws-sdk/lib-dynamodb": "^3.943.0",
+    "@aws/durable-execution-sdk-js": "^1.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.1",
+    "rimraf": "^6.1.2"
+  }
+}
