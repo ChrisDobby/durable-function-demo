@@ -1,4 +1,4 @@
-import { BatchItemStatus, withDurableExecution } from "@aws/durable-execution-sdk-js";
+import { withDurableExecution } from "@aws/durable-execution-sdk-js";
 
 import { createProcess, findRunningProcesses, setProcessStatus } from "./process";
 import { sendApproval } from "./approval";
@@ -21,6 +21,7 @@ export const handler = withDurableExecution(async (_, context) => {
       }
     );
 
+    context.logger.info("user approval received", userApproval);
     if (!userApproval || !JSON.parse(userApproval).approved) {
       throw new Error("No user approval");
     }
@@ -73,6 +74,7 @@ export const handler = withDurableExecution(async (_, context) => {
       },
     ]);
 
+    context.logger.info("commands completed", commandResults);
     const failedCommands = commandResults.all.filter((result) => result.status === "FAILED");
     if (failedCommands.length) {
       throw new Error(`${processId} failed ${JSON.stringify(failedCommands, null, 2)}`);
