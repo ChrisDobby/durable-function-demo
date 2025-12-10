@@ -41,6 +41,7 @@ export const handler = withDurableExecution(async (_, context) => {
       }
     );
 
+    context.logger.info("all processes finished", { haveAllProcessesFinished });
     if (!haveAllProcessesFinished) {
       throw new Error("Processes not finished in a timely manner");
     }
