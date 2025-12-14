@@ -3,12 +3,25 @@ import { withDurableExecution } from "@aws/durable-execution-sdk-js";
 import { createProcess, findRunningProcesses, setProcessStatus } from "./process";
 import { sendApproval } from "./approval";
 import { commandOne, commandTwo } from "./command";
+import { executeOnce } from "./idempotency";
+import { HttpError, transientErrorStatuses } from "./httpError";
+
+const retryStrategy = (_: unknown, attempt: number) => ({
+  shouldRetry: attempt <= 3,
+  delay: { minutes: attempt * 2 },
+});
 
 export const handler = withDurableExecution(async (_, context) => {
-  const processId = await context.step("create process", async (stepContext) => {
-    stepContext.logger.info("creating new process");
-    return await createProcess();
-  });
+  const processId = await context.step(
+    "create process",
+    async (stepContext) => {
+      stepContext.logger.info("creating new process");
+      return await createProcess();
+    },
+    {
+      retryStrategy,
+    }
+  );
 
   try {
     const userApproval = await context.waitForCallback(
@@ -18,6 +31,7 @@ export const handler = withDurableExecution(async (_, context) => {
       },
       {
         timeout: { hours: 1 },
+        retryStrategy,
       }
     );
 
@@ -46,19 +60,26 @@ export const handler = withDurableExecution(async (_, context) => {
       throw new Error("Processes not finished in a timely manner");
     }
 
-    await context.step("start process", async () => {
-      await setProcessStatus(processId, "in-progress");
-    });
+    await context.step(
+      "start process",
+      async () => {
+        await setProcessStatus(processId, "in-progress");
+      },
+      {
+        retryStrategy,
+      }
+    );
 
     const commandResults = await context.parallel("run commands", [
       async (parallelContext) => {
         await parallelContext.waitForCallback(
           "command one",
           async (callbackId) => {
-            await commandOne(callbackId);
+            await executeOnce(processId, "commandOne", async () => commandOne(callbackId));
           },
           {
             timeout: { hours: 1 },
+            retryStrategy,
           }
         );
       },
@@ -66,24 +87,38 @@ export const handler = withDurableExecution(async (_, context) => {
         await parallelContext.waitForCallback(
           "command two",
           async (callbackId) => {
-            await commandTwo(callbackId);
+            await executeOnce(processId, "commandTwo", async () => commandTwo(callbackId));
           },
           {
             timeout: { hours: 1 },
+            retryStrategy: (error, attempt) => {
+              const httpError = error as HttpError;
+              return {
+                shouldRetry: httpError.status
+                  ? transientErrorStatuses.includes(httpError.status) && attempt <= 5
+                  : attempt <= 5,
+                delay: { minutes: 5 * attempt },
+              };
+            },
           }
         );
       },
     ]);
 
     context.logger.info("commands completed", commandResults);
-    const failedCommands = commandResults.all.filter((result) => result.status === "FAILED");
-    if (failedCommands.length) {
-      throw new Error(`${processId} failed ${JSON.stringify(failedCommands, null, 2)}`);
+    if (commandResults.completionReason !== "ALL_COMPLETED") {
+      throw new Error(`${processId} failed ${JSON.stringify(commandResults.failed(), null, 2)}`);
     }
 
-    await context.step("complete process", async () => {
-      await setProcessStatus(processId, "completed");
-    });
+    await context.step(
+      "complete process",
+      async () => {
+        await setProcessStatus(processId, "completed");
+      },
+      {
+        retryStrategy,
+      }
+    );
 
     return { processId, status: "success" };
   } catch (error) {

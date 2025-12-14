@@ -23,6 +23,17 @@ export class DurableFunctionDemoStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    const idempotencyTable = new dynamo.Table(this, "IdempotencyTable", {
+      tableName: `${namespace}-idempotency`,
+      partitionKey: {
+        name: "id",
+        type: dynamo.AttributeType.STRING,
+      },
+      billingMode: dynamo.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      timeToLiveAttribute: "expiration",
+    });
+
     const commandQueue = new sqs.Queue(this, "CommandQueue", {
       queueName: `${namespace}-command`,
     });
@@ -112,6 +123,7 @@ export class DurableFunctionDemoStack extends cdk.Stack {
       },
       environment: {
         PROCESS_TABLE_NAME: processTable.tableName,
+        IDEMPOTENCY_TABLE_NAME: idempotencyTable.tableName,
         APPROVAL_TOPIC_ARN: approvalSnsTopicArn,
         APPROVAL_API_URL: approvalApiUrl,
         COMMAND_URL: commandUrl,
